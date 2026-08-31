@@ -1,0 +1,164 @@
+// Prisma Schema for PostgreSQL / Supabase Relational Database
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PROCESSING
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  RAZORPAY
+  COD
+  UPI
+  CARD
+}
+
+enum ShipmentStatus {
+  MANIFEST_CREATED
+  PICKED_UP
+  IN_TRANSIT
+  REACHED_DESTINATION_HUB
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED_ATTEMPT
+  RETURNED
+}
+
+enum CourierPartner {
+  Delhivery
+  BlueDart
+  Shadowfax
+  XpressBees
+  DTDC
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  role      Role     @default(CUSTOMER)
+  orders    Order[]
+  addresses Address[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  fullName   String
+  email      String
+  phone      String
+  street     String
+  apartment  String?
+  city       String
+  state      String
+  postalCode String
+  country    String   @default("India")
+  orders     Order[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Order {
+  id              String         @id @default(uuid())
+  orderNumber     String         @unique
+  userId          String?
+  user            User?          @relation(fields: [userId], references: [id])
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  addressId       String?
+  shippingAddress Address?       @relation(fields: [addressId], references: [id])
+  items           OrderItem[]
+  subtotal        Float
+  discount        Float          @default(0)
+  shippingFee     Float          @default(0)
+  tax             Float          @default(0)
+  total           Float
+  status          OrderStatus    @default(PENDING_PAYMENT)
+  payment         Payment?
+  shipment        Shipment?
+  trackingNumber  String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model OrderItem {
+  id              String   @id @default(uuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId       String
+  productName     String
+  productImage    String
+  price           Float
+  quantity        Int      @default(1)
+  selectedVariant String?
+  createdAt       DateTime @default(now())
+}
+
+model Payment {
+  id                String        @id @default(uuid())
+  orderId           String        @unique
+  order             Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  razorpaySignature String?
+  amount            Float
+  currency          String        @default("INR")
+  status            PaymentStatus @default(PENDING)
+  method            PaymentMethod @default(RAZORPAY)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model Shipment {
+  id                    String          @id @default(uuid())
+  orderId               String          @unique
+  order                 Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  trackingNumber        String          @unique // AWB Number
+  courier               CourierPartner  @default(Delhivery)
+  status                ShipmentStatus  @default(MANIFEST_CREATED)
+  currentLocation       String
+  estimatedDeliveryDate DateTime
+  events                TrackingEvent[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+}
+
+model TrackingEvent {
+  id          String         @id @default(uuid())
+  shipmentId  String
+  shipment    Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  status      ShipmentStatus
+  location    String
+  description String
+  timestamp   DateTime       @default(now())
+}
